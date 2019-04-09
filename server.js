@@ -1,57 +1,93 @@
-// Load the express module and store it in the variable express (Where do you think this comes from?)
-var express = require("express");
-console.log("Let's find out what express is", express);
-
-
-// invoke express and store the result in the variable app
+var express = require('express');
+// Create an Express App
 var app = express();
-console.log("Let's find out what app is", app);
+// Require body-parser (to receive post data from clients)
+var bodyParser = require('body-parser');
+// Integrate body-parser with our App
+app.use(bodyParser.urlencoded({ extended: true }));
+// Require path
+var path = require('path');
 
-
-// use app's get method and pass it the base route '/' and a callback
-app.get('/', function(request, response) {
-    // just for fun, take a look at the request and response objects
-   console.log("The request object", request);
-   console.log("The response object", response);
-   // use the response object's .send() method to respond with an h1
-   response.send("<h1>Hello Express</h1>");
-})
-
-app.get("/cats", function (request, response){
-  response.render('cats', {});
-})
-
-app.get("/index", function(request, response){
-  response.render('index', {});
-})
-
-app.get("/cats/nemo", function(request, response){
-  var catdata = ['Name: Nemo', 'Color: Black', 'Age: 3','sleeping place: under bed', 'food: vegiterian'];
-  response.render('details', {cats: catdata});
-})
-
-app.get("/cats/tesla", function(request, response){
-  var catdata = ['Name: Tesla', 'Color: Black', 'Age: 4', 'sleeping place :sofa', 'food: chicken meat'];
-  response.render('details', {cats: catdata});
-})
-
-app.get("/cats/poe", function(request, response){
-  var catdata = ['Name: Poe', 'Color: Black', 'Age: 1', 'favorite toys: ball'];
-  response.render('details', {cats: catdata});
-})
-// this is the line that tells our server to use the "/static" folder for static content
-app.use(express.static(__dirname + "/static"));
-// two underscores before dirname
-// try printing out __dirname using console.log to see what it is and why we use it
-
-
-// This sets the location where express will look for the ejs views
-app.set('views', __dirname + '/views'); 
-// Now lets set the view engine itself so that express knows that we are using ejs as opposed to another templating engine like jade
+app.use(express.static(path.join(__dirname, './static')));
+// Setting our Views Folder Directory
+app.set('views', path.join(__dirname, './views'));
+// Setting our View Engine set to EJS
 app.set('view engine', 'ejs');
+// Routes
+// Root Request
+
+var session = require('express-session');
+app.use(session({
+  secret: 'keyboardkitteh',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { maxAge: 60000 }
+}))
+
+//////////////MONGOOSE///////////
+
+var mongoose = require('mongoose');
+// This is how we connect to the mongodb database using mongoose -- "basic_mongoose" is the name of
+//   our db in mongodb -- this should match the name of the db you are going to use for your project.
+mongoose.connect('mongodb://localhost/basic_mongoose');
+var QuoteSchema = new mongoose.Schema({
+	name:  { type: String, required: true, minlength: 3},
+	message:  { type: String, required: true, minlength: 5},
+}, {timestamps: true });
+
+mongoose.model('Quote', QuoteSchema);
+// Retrieve the Schema called 'User' and store it to the variable User
+var Quote = mongoose.model('Quote');
+
+// Use native promises (only necessary with mongoose versions <= 4)
+mongoose.Promise = global.Promise;
+
+const flash = require('express-flash');
+app.use(flash());
+
+app.get('/', function (req, res){
+// This is where we will retrieve the quotes from the database and include them in the view page we will be rendering.
+res.render('index');
+})
 
 
-// tell the express app to listen on port 8000, always put this at the end of your server.js file
+app.get('/quotes', function (req, res){
+// This is where we will retrieve the quotes from the database and include them in the view page we will be rendering.
+
+    Quote.find({}, function(err, quotes){
+        console.log(quotes);
+        if(err){
+            console.log(err)
+            res.render('quotes', {err})
+        }else{
+        res.render('quotes', {'quotes': quotes});
+        }
+    })
+});
+
+////////////add a quote////////////////
+
+app.post('/add', function(req, res) {
+    console.log("POST DATA", req.body);
+	// This is where we would add the user from req.body to the database.
+	var quote = new Quote ({name: req.body.name, message: req.body.message});
+	quote.save(function(err){
+        if(err){
+            // if there is an error upon saving, use console.log to see what is in the err object 
+            console.log("We have an error!", err);
+            // adjust the code below as needed to create a flash message with the tag and content you would like
+            for(var key in err.errors){
+                req.flash('registration', err.errors[key].message);
+            }
+            // redirect the user to an appropriate route
+            res.redirect('/');
+        }
+        else {
+            res.redirect('/quotes');
+        }
+    });
+})
+
 app.listen(8000, function() {
-  console.log("listening on port 8000");
+    console.log("listening on port 8000");
 })
